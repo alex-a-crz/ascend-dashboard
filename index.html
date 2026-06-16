@@ -7,6 +7,8 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -417,8 +419,26 @@ var APP = (function(){
     return r.amount*(r.rate/100);
   }
 
-  function load(){try{profiles=JSON.parse(localStorage.getItem('ac_profiles'))||{}}catch(e){profiles={}}}
-  function save(){localStorage.setItem('ac_profiles',JSON.stringify(profiles))}
+  var firebaseConfig = {
+    apiKey: "AIzaSyAV27xBZxUpnEvO_jRUjXZOever_6Sb3lE",
+    authDomain: "ascend-dashboard-a4154.firebaseapp.com",
+    databaseURL: "https://ascend-dashboard-a4154-default-rtdb.firebaseio.com",
+    projectId: "ascend-dashboard-a4154",
+    storageBucket: "ascend-dashboard-a4154.firebasestorage.app",
+    messagingSenderId: "469057284061",
+    appId: "1:469057284061:web:09635c82fc0d78125eb834"
+  };
+  firebase.initializeApp(firebaseConfig);
+  var db = firebase.database();
+  var dbRef = db.ref('profiles');
+
+  function save(){dbRef.set(profiles)}
+  function load(cb){
+    dbRef.once('value',function(snap){
+      profiles=snap.val()||{};
+      if(cb)cb();
+    });
+  }
 
   function seed(){
     var id='Alex_'+Date.now();
@@ -450,7 +470,7 @@ var APP = (function(){
     var p=new URLSearchParams(location.search);
     var d=p.get('d');if(!d)return;
     var data=decShare(d);
-    if(data&&typeof data==='object'){profiles=data;save()}
+    if(data&&typeof data==='object'){profiles=data;save();}
     history.replaceState(null,'',location.pathname);
   }
   function doShare(){
@@ -762,9 +782,20 @@ var APP = (function(){
 
   // ── Init ──
   handleShare();
-  load();
-  if(!Object.keys(profiles).length)seed();
-  showProfiles();
+  load(function(){
+    if(!Object.keys(profiles).length)seed();
+    showProfiles();
+
+    dbRef.on('value',function(snap){
+      profiles=snap.val()||{};
+      if(activeId){
+        if(!profiles[activeId]){showProfiles();return}
+        render();
+      }else{
+        showProfiles();
+      }
+    });
+  });
 
   return {openDash:openDash,showProfiles:showProfiles,openAdd:openAdd};
 })();
