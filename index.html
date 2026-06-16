@@ -213,6 +213,8 @@ select option{background:var(--surface);color:var(--text)}
 .a-del:hover{background:rgba(248,113,113,.25)}
 .a-pay{background:rgba(74,222,128,.1);color:var(--green);font-weight:700}
 .a-pay:hover{background:rgba(74,222,128,.25)}
+.a-edit{background:rgba(200,241,53,.08);color:var(--accent)}
+.a-edit:hover{background:rgba(200,241,53,.2)}
 
 .empty{text-align:center;padding:48px 20px;color:var(--muted)}
 .empty p{margin-bottom:16px}
@@ -375,6 +377,7 @@ var APP = (function(){
 
   var profiles = {};
   var activeId = null;
+  var editIdx = null;
 
   function $(id){return document.getElementById(id)}
   function esc(s){var d=document.createElement('div');d.textContent=s||'';return d.innerHTML}
@@ -615,7 +618,8 @@ var APP = (function(){
           }
         }else{dateH=fmtISO(r.date)}
 
-        var actH='<button class="a-del" data-di="'+i+'" title="Delete">&times;</button>';
+        var actH='<button class="a-edit" data-ei="'+i+'" title="Edit">✎</button>';
+        actH+='<button class="a-del" data-di="'+i+'" title="Delete">&times;</button>';
         if(isRec&&(r.paid||1)<(r.totpay||1))actH+='<button class="a-pay" data-pi="'+i+'" title="Log payment">+1</button>';
 
         trs+='<tr>';
@@ -657,6 +661,12 @@ var APP = (function(){
     var emptyBtn=$('btn-empty-add');
     if(emptyBtn)emptyBtn.addEventListener('click',openAdd);
 
+    var edits=document.querySelectorAll('[data-ei]');
+    for(var e=0;e<edits.length;e++){
+      edits[e].addEventListener('click',function(){
+        openEdit(parseInt(this.getAttribute('data-ei')));
+      });
+    }
     var dels=document.querySelectorAll('[data-di]');
     for(var d=0;d<dels.length;d++){
       dels[d].addEventListener('click',function(){
@@ -688,6 +698,8 @@ var APP = (function(){
   }
 
   function openAdd(){
+    editIdx=null;
+    document.querySelector('#ov-add .modal h3').textContent='Add Close';
     fillSelects();
     $('f-client').value='';
     $('f-date').value=isoToday();
@@ -696,6 +708,36 @@ var APP = (function(){
     $('f-totpay').value='';
     $('f-paid').value='1';
     syncForm();
+    $('ov-add').classList.add('open');
+    setTimeout(function(){$('f-client').focus()},100);
+  }
+
+  function openEdit(idx){
+    editIdx=idx;
+    var r=profiles[activeId].rows[idx];
+    document.querySelector('#ov-add .modal h3').textContent='Edit Close';
+    fillSelects();
+    $('f-client').value=r.client||'';
+    $('f-role').value=r.role||'closer';
+    $('f-product').value=r.product||'ecom-ignition';
+    $('f-amount').value=r.amount||0;
+    $('f-rate').value=r.rate||0;
+    $('f-date').value=r.date||isoToday();
+    var pr=PRODUCTS[r.product];
+    if(pr&&pr.rec){
+      $('f-rec').classList.add('show');
+      $('f-upfront').value=r.upfront||'';
+      $('f-monthly').value=r.monthly||'';
+      $('f-totpay').value=r.totpay||'';
+      $('f-paid').value=r.paid||1;
+    }else{
+      $('f-rec').classList.remove('show');
+      $('f-upfront').value='';
+      $('f-monthly').value='';
+      $('f-totpay').value='';
+      $('f-paid').value='1';
+    }
+    calcPreview();
     $('ov-add').classList.add('open');
     setTimeout(function(){$('f-client').focus()},100);
   }
@@ -767,7 +809,12 @@ var APP = (function(){
         row.paid=parseInt($('f-paid').value)||1;
       }
     }
-    profiles[activeId].rows.push(row);
+    if(editIdx!==null){
+      profiles[activeId].rows[editIdx]=row;
+    }else{
+      profiles[activeId].rows.push(row);
+    }
+    editIdx=null;
     save();closeAdd();render();
   }
 
@@ -818,7 +865,7 @@ var APP = (function(){
     });
   });
 
-  return {openDash:openDash,showProfiles:showProfiles,openAdd:openAdd};
+  return {openDash:openDash,showProfiles:showProfiles,openAdd:openAdd,openEdit:openEdit};
 })();
 </script>
 </body>
