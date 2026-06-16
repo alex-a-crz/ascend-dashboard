@@ -318,6 +318,7 @@ select option{background:var(--surface);color:var(--text)}
       <div class="fg"><label>Commission rate (%)</label><input type="number" id="f-rate" step="1" min="0" max="100"></div>
     </div>
     <div class="rec" id="f-rec">
+      <div class="fg"><label>Upfront deposit ($) <span style="color:var(--muted);font-weight:400">(optional)</span></label><input type="number" id="f-upfront" step="0.01" min="0" placeholder="0"></div>
       <div class="fg-row">
         <div class="fg"><label>Monthly payment ($)</label><input type="number" id="f-monthly" step="0.01" min="0"></div>
         <div class="fg"><label>Total payments</label><input type="number" id="f-totpay" step="1" min="1"></div>
@@ -410,12 +411,18 @@ var APP = (function(){
   }
 
   function cut(r){
-    if(r.rec&&r.monthly>0)return r.monthly*(r.rate/100)*(r.paid||1);
+    if(r.rec&&r.monthly>0){
+      var up=(r.upfront||0)*(r.rate/100);
+      return up+r.monthly*(r.rate/100)*(r.paid||1);
+    }
     return r.amount*(r.rate/100);
   }
 
   function totalCut(r){
-    if(r.rec&&r.monthly>0)return r.monthly*(r.rate/100)*(r.totpay||1);
+    if(r.rec&&r.monthly>0){
+      var up=(r.upfront||0)*(r.rate/100);
+      return up+r.monthly*(r.rate/100)*(r.totpay||1);
+    }
     return r.amount*(r.rate/100);
   }
 
@@ -591,8 +598,12 @@ var APP = (function(){
         var c=cut(r);
 
         var cutH;
-        if(isRec)cutH='<span class="cut">'+fmt(c)+' / '+fmt(totalCut(r))+'</span>';
-        else cutH='<span class="cut">'+fmt(c)+'</span>';
+        if(isRec){
+          var upLabel=r.upfront>0?'<br><span style="font-size:.75rem;color:var(--muted)">+'+fmt((r.upfront||0)*(r.rate/100))+' upfront</span>':'';
+          cutH='<span class="cut">'+fmt(c)+' / '+fmt(totalCut(r))+'</span>'+upLabel;
+        }else{
+          cutH='<span class="cut">'+fmt(c)+'</span>';
+        }
 
         var dateH;
         if(isRec){
@@ -680,6 +691,7 @@ var APP = (function(){
     fillSelects();
     $('f-client').value='';
     $('f-date').value=isoToday();
+    $('f-upfront').value='';
     $('f-monthly').value='';
     $('f-totpay').value='';
     $('f-paid').value='1';
@@ -711,12 +723,18 @@ var APP = (function(){
       var mo=parseFloat($('f-monthly').value)||0;
       var tp=parseInt($('f-totpay').value)||1;
       var pd=parseInt($('f-paid').value)||1;
-      if(mo>0){
+      var up=parseFloat($('f-upfront').value)||0;
+      if(mo>0||up>0){
+        var upCut=up*(rate/100);
         var per=mo*(rate/100);
-        var earned=per*pd;
-        var total=per*tp;
+        var earned=upCut+per*pd;
+        var total=upCut+per*tp;
         $('pv-amt').textContent=fmt(earned);
-        $('pv-det').textContent=fmt(per)+'/payment · '+fmt(earned)+' earned · '+fmt(total)+' total';
+        var det='';
+        if(up>0)det+=fmt(upCut)+' upfront · ';
+        if(mo>0)det+=fmt(per)+'/payment · ';
+        det+=fmt(earned)+' earned · '+fmt(total)+' total';
+        $('pv-det').textContent=det;
         return;
       }
     }
@@ -739,8 +757,10 @@ var APP = (function(){
       rec:pr.rec
     };
     if(pr.rec){
-      var mo=parseFloat($('f-monthly').value);
-      var tp=parseInt($('f-totpay').value);
+      var up=parseFloat($('f-upfront').value)||0;
+      var mo=parseFloat($('f-monthly').value)||0;
+      var tp=parseInt($('f-totpay').value)||0;
+      if(up>0)row.upfront=up;
       if(mo>0&&tp>0){
         row.monthly=mo;
         row.totpay=tp;
@@ -774,6 +794,7 @@ var APP = (function(){
   $('f-role').addEventListener('change',syncForm);
   $('f-amount').addEventListener('input',calcPreview);
   $('f-rate').addEventListener('input',calcPreview);
+  $('f-upfront').addEventListener('input',calcPreview);
   $('f-monthly').addEventListener('input',calcPreview);
   $('f-totpay').addEventListener('input',calcPreview);
   $('f-paid').addEventListener('input',calcPreview);
