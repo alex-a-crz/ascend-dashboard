@@ -225,6 +225,18 @@ select option{background:var(--surface);color:var(--text)}
   font-size:.8rem;color:var(--muted);
 }
 
+.periods{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px}
+.percard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px}
+.percard.cur{border-color:var(--accent);background:rgba(200,241,53,.04)}
+.percard .per-lbl{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
+.percard .per-range{font-size:.85rem;font-weight:600;margin-bottom:10px}
+.percard .per-amt{font-family:'Syne',sans-serif;font-size:1.6rem;font-weight:700;color:var(--green)}
+.percard.cur .per-amt{color:var(--accent)}
+.percard .per-sub{font-size:.78rem;color:var(--muted);margin-top:6px}
+
+.month-section{margin-bottom:32px}
+@media(max-width:768px){.periods{grid-template-columns:1fr}}
+
 /* ══════════════ MODALS ══════════════ */
 .ov{
   position:fixed;inset:0;
@@ -394,6 +406,40 @@ var APP = (function(){
     var now=new Date();now.setHours(0,0,0,0);
     var t=new Date(d);t.setHours(0,0,0,0);
     return Math.ceil((t-now)/864e5);
+  }
+
+  var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+  var FULLMONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
+
+  function getMonthPeriods(m,y){
+    var lastDay=new Date(y,m+1,0).getDate();
+    return {
+      first:{start:new Date(y,m,1),end:new Date(y,m,15,23,59,59),label:MONTHS[m]+' 1–15'},
+      second:{start:new Date(y,m,16),end:new Date(y,m,lastDay,23,59,59),label:MONTHS[m]+' 16–'+lastDay}
+    };
+  }
+
+  function periodComm(rows,start,end){
+    var t=0;
+    for(var i=0;i<rows.length;i++){
+      var rd=new Date(rows[i].date+'T12:00:00');
+      if(rd>=start&&rd<=end)t+=cut(rows[i]);
+    }
+    return t;
+  }
+
+  function monthlyBreakdown(rows){
+    var mo={};
+    for(var i=0;i<rows.length;i++){
+      var r=rows[i];
+      var rd=new Date(r.date+'T12:00:00');
+      var key=rd.getFullYear()+'-'+String(rd.getMonth()+1).padStart(2,'0');
+      if(!mo[key])mo[key]={label:FULLMONTHS[rd.getMonth()]+' '+rd.getFullYear(),closes:0,revenue:0,comm:0};
+      mo[key].closes++;
+      mo[key].revenue+=Number(r.amount);
+      mo[key].comm+=cut(r);
+    }
+    return Object.keys(mo).sort().reverse().map(function(k){return mo[k]});
   }
 
   function nextPayouts(){
@@ -650,6 +696,39 @@ var APP = (function(){
         '<div class="pocard hi"><div class="pol">Next payout</div><div class="pod">'+fmtD(po.next)+'</div><div class="poa">'+dn+' day'+(dn!==1?'s':'')+' away</div></div>'+
         '<div class="pocard"><div class="pol">After that</div><div class="pod">'+fmtD(po.after)+'</div><div class="poa">'+da+' day'+(da!==1?'s':'')+' away</div></div>'+
       '</div>'+
+      (function(){
+        var now=new Date(),m=now.getMonth(),y=now.getFullYear();
+        var ps=getMonthPeriods(m,y);
+        var d=now.getDate();
+        var isFP=d<=15;
+        var c1=periodComm(rows,ps.first.start,ps.first.end);
+        var c2=periodComm(rows,ps.second.start,ps.second.end);
+        var mb=monthlyBreakdown(rows);
+        var cards=
+          '<div class="percard'+(isFP?' cur':'')+'">'+
+            '<div class="per-lbl">'+(isFP?'Current period':'Previous period')+'</div>'+
+            '<div class="per-range">'+ps.first.label+'</div>'+
+            '<div class="per-amt">'+fmt(c1)+'</div>'+
+            '<div class="per-sub">Pays out '+MONTHS[m]+' 15</div>'+
+          '</div>'+
+          '<div class="percard'+(!isFP?' cur':'')+'">'+
+            '<div class="per-lbl">'+(!isFP?'Current period':'Next period')+'</div>'+
+            '<div class="per-range">'+ps.second.label+'</div>'+
+            '<div class="per-amt">'+fmt(c2)+'</div>'+
+            '<div class="per-sub">Pays out '+(m+1>11?MONTHS[0]+' '+(y+1):MONTHS[m+1]+' 1')+'</div>'+
+          '</div>';
+        var mhtml='';
+        if(mb.length){
+          mhtml='<div class="month-section"><h3 style="margin-bottom:16px">Monthly Breakdown</h3>'+
+            '<div class="twrap"><table><thead><tr><th>Month</th><th>Closes</th><th>Revenue</th><th>Commission</th></tr></thead><tbody>';
+          for(var mi=0;mi<mb.length;mi++){
+            var mo2=mb[mi];
+            mhtml+='<tr><td>'+mo2.label+'</td><td>'+mo2.closes+'</td><td>'+fmt(mo2.revenue)+'</td><td class="green">'+fmt(mo2.comm)+'</td></tr>';
+          }
+          mhtml+='</tbody></table></div></div>';
+        }
+        return '<h3 style="margin-bottom:16px;margin-top:0">Pay Periods</h3><div class="periods">'+cards+'</div>'+mhtml;
+      })()+
       '<div class="tbl-hdr"><h3>Closes</h3><button class="btn btn-accent" id="btn-add">+ Add close</button></div>'+
       '<div class="twrap"><table><thead><tr>'+
         '<th>Client</th><th>Product</th><th>Tier</th><th>Role</th><th>Amount</th><th>Rate</th><th>My Cut</th><th>Date</th><th></th>'+
