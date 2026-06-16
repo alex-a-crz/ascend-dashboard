@@ -225,16 +225,19 @@ select option{background:var(--surface);color:var(--text)}
   font-size:.8rem;color:var(--muted);
 }
 
-.periods{margin-bottom:32px}
-.percard{background:var(--surface);border:1px solid var(--accent);background:rgba(200,241,53,.04);border-radius:14px;padding:24px 28px;cursor:pointer;transition:background .18s,box-shadow .18s;display:flex;align-items:center;justify-content:space-between;gap:16px}
-.percard:hover{background:rgba(200,241,53,.09);box-shadow:0 0 0 1px var(--accent)}
+.periods{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-bottom:32px}
+.percard{background:var(--surface);border:1px solid var(--border);border-radius:12px;padding:18px 20px;cursor:pointer;transition:border-color .18s,background .18s;display:flex;align-items:center;justify-content:space-between;gap:12px}
+.percard:hover{border-color:var(--border2);background:var(--surface2)}
+.percard.cur{border-color:var(--accent);background:rgba(200,241,53,.04)}
+.percard.cur:hover{background:rgba(200,241,53,.08)}
 .percard .per-left{}
-.percard .per-lbl{font-size:.72rem;color:var(--muted);text-transform:uppercase;letter-spacing:1px;margin-bottom:4px}
-.percard .per-range{font-size:.95rem;font-weight:600;margin-bottom:6px}
-.percard .per-amt{font-family:'Syne',sans-serif;font-size:1.8rem;font-weight:700;color:var(--accent)}
-.percard .per-sub{font-size:.78rem;color:var(--muted);margin-top:4px}
-.percard .per-hint{font-size:.78rem;color:var(--muted);display:flex;align-items:center;gap:6px;opacity:.7}
-.month-section{margin-bottom:32px}
+.percard .per-lbl{font-size:.68rem;color:var(--accent);text-transform:uppercase;letter-spacing:1px;margin-bottom:3px;min-height:1em}
+.percard .per-range{font-size:.9rem;font-weight:600;margin-bottom:4px}
+.percard .per-amt{font-family:'Syne',sans-serif;font-size:1.4rem;font-weight:700;color:var(--green)}
+.percard.cur .per-amt{color:var(--accent)}
+.percard .per-sub{font-size:.75rem;color:var(--muted);margin-top:3px}
+.percard .per-hint{font-size:.75rem;color:var(--muted);white-space:nowrap;opacity:.6}
+@media(max-width:768px){.periods{grid-template-columns:1fr}}
 /* period detail modal */
 .per-modal-inner{max-width:540px}
 .per-modal-inner .pm-header{margin-bottom:20px}
@@ -623,18 +626,36 @@ var APP = (function(){
     render();
   }
 
-  function openPeriod(){
+  var _allPeriods=[];
+
+  function buildAllPeriods(rows){
+    var now=new Date();
+    var earliest=now;
+    for(var i=0;i<rows.length;i++){
+      var d=new Date(rows[i].date+'T12:00:00');
+      if(d<earliest)earliest=d;
+    }
+    var periods=[];
+    var cur=new Date(earliest.getFullYear(),earliest.getMonth(),1);
+    while(cur<=now){
+      var m=cur.getMonth(),y=cur.getFullYear();
+      var lastDay=new Date(y,m+1,0).getDate();
+      var nm=m+1>11?0:m+1,ny=m+1>11?y+1:y;
+      periods.push({label:MONTHS[m]+' 1–15',start:new Date(y,m,1),end:new Date(y,m,15,23,59,59),payout:MONTHS[m]+' 15'});
+      periods.push({label:MONTHS[m]+' 16–'+lastDay,start:new Date(y,m,16),end:new Date(y,m,lastDay,23,59,59),payout:MONTHS[nm]+' 1'+(nm===0?' '+ny:'')});
+      cur=new Date(y,m+1,1);
+    }
+    return periods.filter(function(p){return p.start<=now}).reverse();
+  }
+
+  function openPeriod(idx){
     var p=profiles[activeId];if(!p)return;
     var rows=p.rows;
-    var now=new Date(),m=now.getMonth(),y=now.getFullYear();
-    var ps=getMonthPeriods(m,y);
-    var isFP=now.getDate()<=15;
-    var curPeriod=isFP?ps.first:ps.second;
-    var payoutLbl=isFP?(MONTHS[m]+' 15'):(m+1>11?MONTHS[0]+' '+(y+1):MONTHS[m+1]+' 1');
+    var period=_allPeriods[idx];if(!period)return;
     var periodRows=[];
     for(var i=0;i<rows.length;i++){
       var rd=new Date(rows[i].date+'T12:00:00');
-      if(rd>=curPeriod.start&&rd<=curPeriod.end)periodRows.push(rows[i]);
+      if(rd>=period.start&&rd<=period.end)periodRows.push(rows[i]);
     }
     var total=0;
     var rowsHtml='';
@@ -654,13 +675,12 @@ var APP = (function(){
           '<div class="pm-cut">'+fmt(c)+'</div>'+
         '</div>';
       }
-      total=periodComm(rows,curPeriod.start,curPeriod.end);
     }
     var body=$('period-modal-body');
     body.innerHTML=
       '<div class="pm-header">'+
-        '<h3>'+curPeriod.label+'</h3>'+
-        '<p>Pays out '+payoutLbl+'</p>'+
+        '<h3>'+period.label+'</h3>'+
+        '<p>Pays out '+period.payout+'</p>'+
       '</div>'+
       '<div class="pm-total">'+
         '<div class="pm-total-lbl">Period Commission</div>'+
@@ -761,35 +781,27 @@ var APP = (function(){
         '<div class="pocard"><div class="pol">After that</div><div class="pod">'+fmtD(po.after)+'</div><div class="poa">'+da+' day'+(da!==1?'s':'')+' away</div></div>'+
       '</div>'+
       (function(){
-        var now=new Date(),m=now.getMonth(),y=now.getFullYear();
-        var ps=getMonthPeriods(m,y);
-        var d=now.getDate();
-        var isFP=d<=15;
-        var curPeriod=isFP?ps.first:ps.second;
-        var curComm=periodComm(rows,curPeriod.start,curPeriod.end);
-        var payoutLbl=isFP?(MONTHS[m]+' 15'):(m+1>11?MONTHS[0]+' '+(y+1):MONTHS[m+1]+' 1');
-        var mb=monthlyBreakdown(rows);
-        var card=
-          '<div class="percard" id="btn-period">'+
-            '<div class="per-left">'+
-              '<div class="per-lbl">Current Pay Period</div>'+
-              '<div class="per-range">'+curPeriod.label+'</div>'+
-              '<div class="per-amt">'+fmt(curComm)+'</div>'+
-              '<div class="per-sub">Pays out '+payoutLbl+'</div>'+
-            '</div>'+
-            '<div class="per-hint">View breakdown ›</div>'+
-          '</div>';
-        var mhtml='';
-        if(mb.length){
-          mhtml='<div class="month-section"><h3 style="margin-bottom:16px">Monthly Breakdown</h3>'+
-            '<div class="twrap"><table><thead><tr><th>Month</th><th>Closes</th><th>Revenue</th><th>Commission</th></tr></thead><tbody>';
-          for(var mi=0;mi<mb.length;mi++){
-            var mo2=mb[mi];
-            mhtml+='<tr><td>'+mo2.label+'</td><td>'+mo2.closes+'</td><td>'+fmt(mo2.revenue)+'</td><td class="green">'+fmt(mo2.comm)+'</td></tr>';
-          }
-          mhtml+='</tbody></table></div></div>';
+        _allPeriods=buildAllPeriods(rows);
+        var now=new Date();
+        var cards='';
+        for(var pi=0;pi<_allPeriods.length;pi++){
+          var per=_allPeriods[pi];
+          var isCur=now>=per.start&&now<=per.end;
+          var comm=periodComm(rows,per.start,per.end);
+          var closeCount=0;
+          for(var ri=0;ri<rows.length;ri++){var rd=new Date(rows[ri].date+'T12:00:00');if(rd>=per.start&&rd<=per.end)closeCount++;}
+          cards+=
+            '<div class="percard'+(isCur?' cur':'')+'" data-pi="'+pi+'">'+
+              '<div class="per-left">'+
+                '<div class="per-lbl">'+(isCur?'Current Period':'')+'</div>'+
+                '<div class="per-range">'+per.label+'</div>'+
+                '<div class="per-amt">'+fmt(comm)+'</div>'+
+                '<div class="per-sub">'+closeCount+' close'+(closeCount!==1?'s':'')+' &middot; Pays out '+per.payout+'</div>'+
+              '</div>'+
+              '<div class="per-hint">View ›</div>'+
+            '</div>';
         }
-        return '<h3 style="margin-bottom:16px;margin-top:0">Pay Periods</h3><div class="periods">'+card+'</div>'+mhtml;
+        return '<h3 style="margin-bottom:16px;margin-top:0">Pay Periods</h3><div class="periods">'+cards+'</div>';
       })()+
       '<div class="tbl-hdr"><h3>Closes</h3><button class="btn btn-accent" id="btn-add">+ Add close</button></div>'+
       '<div class="twrap"><table><thead><tr>'+
@@ -798,8 +810,10 @@ var APP = (function(){
       '<div class="footer"><span>'+esc(p.name)+' &middot; Ascend Collective affiliate</span><span>Updated '+fmtD(new Date())+'</span></div>';
 
     // bind
-    var periodBtn=$('btn-period');
-    if(periodBtn)periodBtn.addEventListener('click',openPeriod);
+    var periodCards=document.querySelectorAll('[data-pi]');
+    for(var pc=0;pc<periodCards.length;pc++){
+      periodCards[pc].addEventListener('click',(function(idx){return function(){openPeriod(idx)}})(parseInt(periodCards[pc].getAttribute('data-pi'))));
+    }
     var addBtn=$('btn-add');
     if(addBtn)addBtn.addEventListener('click',openAdd);
     var emptyBtn=$('btn-empty-add');
