@@ -325,7 +325,7 @@ select option{background:var(--surface);color:var(--text)}
         <div class="fg"><label>Monthly payment ($)</label><input type="number" id="f-monthly" step="0.01" min="0"></div>
         <div class="fg"><label>Total payments</label><input type="number" id="f-totpay" step="1" min="1"></div>
       </div>
-      <div class="fg"><label>Payments made so far</label><input type="number" id="f-paid" step="1" min="1" value="1"></div>
+      <div class="fg"><label>Payments made so far</label><input type="number" id="f-paid" step="1" min="0" value="0"></div>
     </div>
     <div class="fg"><label>Date</label><input type="date" id="f-date"></div>
     <div class="pvbox">
@@ -416,7 +416,8 @@ var APP = (function(){
   function cut(r){
     if(r.rec&&r.monthly>0){
       var up=(r.upfront||0)*(r.rate/100);
-      return up+r.monthly*(r.rate/100)*(r.paid||1);
+      var pd=r.paid!=null?r.paid:0;
+      return up+r.monthly*(r.rate/100)*pd;
     }
     return r.amount*(r.rate/100);
   }
@@ -620,7 +621,7 @@ var APP = (function(){
 
         var actH='<button class="a-edit" data-ei="'+i+'" title="Edit">✎</button>';
         actH+='<button class="a-del" data-di="'+i+'" title="Delete">&times;</button>';
-        if(isRec&&(r.paid||1)<(r.totpay||1))actH+='<button class="a-pay" data-pi="'+i+'" title="Log payment">+1</button>';
+        if(isRec&&(r.paid!=null?r.paid:0)<(r.totpay||1))actH+='<button class="a-pay" data-pi="'+i+'" title="Log payment">+1</button>';
 
         trs+='<tr>';
         trs+='<td>'+esc(r.client)+'</td>';
@@ -681,8 +682,9 @@ var APP = (function(){
       pays[p2].addEventListener('click',function(){
         var idx=parseInt(this.getAttribute('data-pi'));
         var row=profiles[activeId].rows[idx];
-        if((row.paid||1)<(row.totpay||1)){
-          row.paid=(row.paid||1)+1;save();render();
+        var curPaid=row.paid!=null?row.paid:0;
+        if(curPaid<(row.totpay||1)){
+          row.paid=curPaid+1;save();render();
         }
       });
     }
@@ -706,7 +708,7 @@ var APP = (function(){
     $('f-upfront').value='';
     $('f-monthly').value='';
     $('f-totpay').value='';
-    $('f-paid').value='1';
+    $('f-paid').value='0';
     syncForm();
     $('ov-add').classList.add('open');
     setTimeout(function(){$('f-client').focus()},100);
