@@ -933,7 +933,7 @@ var APP = (function(){
       $('f-upfront').value=r.upfront||'';
       $('f-monthly').value=r.monthly||'';
       $('f-totpay').value=r.totpay||'';
-      $('f-paid').value=r.paid||1;
+      $('f-paid').value=r.paid!=null?r.paid:0;
     }else{
       $('f-rec').classList.remove('show');
       $('f-upfront').value='';
@@ -968,7 +968,7 @@ var APP = (function(){
     if(pr&&pr.rec){
       var mo=parseFloat($('f-monthly').value)||0;
       var tp=parseInt($('f-totpay').value)||1;
-      var pd=parseInt($('f-paid').value)||1;
+      var pd=parseInt($('f-paid').value);if(isNaN(pd)||pd<0)pd=0;
       var up=parseFloat($('f-upfront').value)||0;
       if(mo>0||up>0){
         var upCut=up*(rate/100);
@@ -1010,7 +1010,7 @@ var APP = (function(){
       if(mo>0&&tp>0){
         row.monthly=mo;
         row.totpay=tp;
-        row.paid=parseInt($('f-paid').value)||1;
+        var paidVal=parseInt($('f-paid').value);row.paid=isNaN(paidVal)||paidVal<0?0:paidVal;
       }
     }
     if(editIdx!==null){
