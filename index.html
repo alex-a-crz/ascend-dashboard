@@ -442,8 +442,24 @@ var APP = (function(){
   function periodComm(rows,start,end){
     var t=0;
     for(var i=0;i<rows.length;i++){
-      var rd=new Date(rows[i].date+'T12:00:00');
-      if(rd>=start&&rd<=end)t+=cut(rows[i]);
+      var r=rows[i];
+      var rd=new Date(r.date+'T12:00:00');
+      if(r.rec&&r.monthly>0){
+        // Upfront commission counts in the period the deal was closed
+        if(rd>=start&&rd<=end)t+=(r.upfront||0)*(r.rate/100);
+        // Each monthly payment counts in the period it was logged
+        var pdates=r.paymentDates||[];
+        for(var j=0;j<pdates.length;j++){
+          var pd=new Date(pdates[j]+'T12:00:00');
+          if(pd>=start&&pd<=end)t+=r.monthly*(r.rate/100);
+        }
+        // Fallback: old rows with paid>0 but no paymentDates — attribute to close date
+        if(!pdates.length&&(r.paid||0)>0&&rd>=start&&rd<=end){
+          t+=r.monthly*(r.rate/100)*(r.paid||0);
+        }
+      }else{
+        if(rd>=start&&rd<=end)t+=cut(r);
+      }
     }
     return t;
   }
@@ -652,27 +668,50 @@ var APP = (function(){
     var p=profiles[activeId];if(!p)return;
     var rows=p.rows;
     var period=_allPeriods[idx];if(!period)return;
-    var periodRows=[];
+    // Build line items: upfront on close date, each payment on its logged date
+    var lineItems=[];
     for(var i=0;i<rows.length;i++){
-      var rd=new Date(rows[i].date+'T12:00:00');
-      if(rd>=period.start&&rd<=period.end)periodRows.push(rows[i]);
+      var r=rows[i];
+      var rd=new Date(r.date+'T12:00:00');
+      var pr=PRODUCTS[r.product];
+      var prodLabel=pr?pr.label:r.product;
+      if(r.rec&&r.monthly>0){
+        // Upfront in the period it was closed
+        if(rd>=period.start&&rd<=period.end&&(r.upfront||0)>0){
+          lineItems.push({client:r.client,desc:prodLabel+' — upfront',date:r.date,amt:(r.upfront||0)*(r.rate/100)});
+        }
+        // Monthly payments by logged date
+        var pdates=r.paymentDates||[];
+        for(var j=0;j<pdates.length;j++){
+          var pd=new Date(pdates[j]+'T12:00:00');
+          if(pd>=period.start&&pd<=period.end){
+            lineItems.push({client:r.client,desc:prodLabel+' — payment '+(j+1),date:pdates[j],amt:r.monthly*(r.rate/100)});
+          }
+        }
+        // Fallback for old rows with no paymentDates
+        if(!pdates.length&&(r.paid||0)>0&&rd>=period.start&&rd<=period.end){
+          lineItems.push({client:r.client,desc:prodLabel+' — '+r.paid+' payment'+(r.paid!==1?'s':''),date:r.date,amt:r.monthly*(r.rate/100)*(r.paid||0)});
+        }
+      }else{
+        if(rd>=period.start&&rd<=period.end){
+          lineItems.push({client:r.client,desc:prodLabel,date:r.date,amt:cut(r)});
+        }
+      }
     }
     var total=0;
     var rowsHtml='';
-    if(!periodRows.length){
-      rowsHtml='<div class="pm-empty">No closes in this period yet</div>';
+    if(!lineItems.length){
+      rowsHtml='<div class="pm-empty">No commission in this period yet</div>';
     }else{
-      for(var j=0;j<periodRows.length;j++){
-        var r=periodRows[j];
-        var c=cut(r);
-        total+=c;
-        var pr=PRODUCTS[r.product];
+      for(var k=0;k<lineItems.length;k++){
+        var li=lineItems[k];
+        total+=li.amt;
         rowsHtml+='<div class="pm-row">'+
           '<div>'+
-            '<div class="pm-client">'+esc(r.client)+'</div>'+
-            '<div class="pm-prod">'+(pr?esc(pr.label):esc(r.product))+'&nbsp;&middot;&nbsp;'+fmtISO(r.date)+'</div>'+
+            '<div class="pm-client">'+esc(li.client)+'</div>'+
+            '<div class="pm-prod">'+esc(li.desc)+'&nbsp;&middot;&nbsp;'+fmtISO(li.date)+'</div>'+
           '</div>'+
-          '<div class="pm-cut">'+fmt(c)+'</div>'+
+          '<div class="pm-cut">'+fmt(li.amt)+'</div>'+
         '</div>';
       }
     }
@@ -687,7 +726,7 @@ var APP = (function(){
         '<div class="pm-total-amt">'+fmt(total)+'</div>'+
       '</div>'+
       rowsHtml+
-      (periodRows.length>1?'<div style="display:flex;justify-content:space-between;padding:14px 0 0;border-top:1px solid var(--border);margin-top:4px"><span style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">'+periodRows.length+' closes</span><span style="font-weight:700;color:var(--accent)">'+fmt(total)+'</span></div>':'');
+      (lineItems.length>1?'<div style="display:flex;justify-content:space-between;padding:14px 0 0;border-top:1px solid var(--border);margin-top:4px"><span style="font-size:.8rem;color:var(--muted);text-transform:uppercase;letter-spacing:.8px">'+lineItems.length+' items</span><span style="font-weight:700;color:var(--accent)">'+fmt(total)+'</span></div>':'');
     $('ov-period').classList.add('open');
     var closeBtn=$('btn-close-period');
     if(closeBtn)closeBtn.addEventListener('click',function(){$('ov-period').classList.remove('open')});
@@ -844,7 +883,10 @@ var APP = (function(){
         var row=profiles[activeId].rows[idx];
         var curPaid=row.paid!=null?row.paid:0;
         if(curPaid<(row.totpay||1)){
-          row.paid=curPaid+1;save();render();
+          row.paid=curPaid+1;
+          if(!row.paymentDates)row.paymentDates=[];
+          row.paymentDates.push(isoToday());
+          save();render();
         }
       });
     }
