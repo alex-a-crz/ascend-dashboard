@@ -7,8 +7,6 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -514,56 +512,66 @@ var APP = (function(){
     return r.amount*(r.rate/100);
   }
 
-  var firebaseConfig = {
-    apiKey: "AIzaSyAV27xBZxUpnEvO_jRUjXZOever_6Sb3lE",
-    authDomain: "ascend-dashboard-a4154.firebaseapp.com",
-    databaseURL: "https://ascend-dashboard-a4154-default-rtdb.firebaseio.com",
-    projectId: "ascend-dashboard-a4154",
-    storageBucket: "ascend-dashboard-a4154.firebasestorage.app",
-    messagingSenderId: "469057284061",
-    appId: "1:469057284061:web:09635c82fc0d78125eb834"
-  };
-  if(typeof firebase==='undefined'){
-    document.body.innerHTML='<div style="font-family:sans-serif;color:#f0f0f0;background:#0a0a0a;min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px"><p style="font-size:1.2rem;font-weight:600">Failed to connect</p><p style="color:#888;font-size:.9rem">Firebase blocked by network or browser extension.</p><p style="color:#888;font-size:.9rem">Try disabling ad blockers or opening in incognito.</p></div>';
-    return {};
-  }
-  firebase.initializeApp(firebaseConfig);
-  var db = firebase.database();
-  var dbRef = db.ref('profiles');
   var _fbConnected = false;
+  var dbRef = null;
 
   function save(){
-    // Always save to localStorage as backup
     try{localStorage.setItem('asc_profiles',JSON.stringify(profiles));}catch(e){}
-    // Save to Firebase if connected
-    if(_fbConnected) dbRef.set(profiles);
+    if(_fbConnected && dbRef) dbRef.set(profiles);
   }
+
   function load(cb){
-    // Start with localStorage so page shows instantly
+    // Load from localStorage immediately — page shows right away
     try{
       var local=localStorage.getItem('asc_profiles');
-      if(local){profiles=JSON.parse(local);}
+      if(local) profiles=JSON.parse(local);
     }catch(e){}
-    // Try Firebase with 6s timeout
-    var done=false;
-    var t=setTimeout(function(){
-      if(!done){done=true;if(cb)cb();}
-    },6000);
-    dbRef.once('value',function(snap){
-      if(!done){
-        done=true;
-        clearTimeout(t);
-        _fbConnected=true;
-        var fbData=snap.val();
-        if(fbData){
-          profiles=fbData;
-          try{localStorage.setItem('asc_profiles',JSON.stringify(profiles));}catch(e){}
-        }
-        if(cb)cb();
-      }
-    },function(){
-      // Firebase error — use localStorage data
-      if(!done){done=true;clearTimeout(t);if(cb)cb();}
+    if(cb) cb();
+
+    // Then load Firebase scripts in background and sync
+    function loadScript(src, onload){
+      var s=document.createElement('script');
+      s.src=src; s.async=true;
+      s.onload=onload; s.onerror=function(){};
+      document.head.appendChild(s);
+    }
+    loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js', function(){
+      loadScript('https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js', function(){
+        try{
+          firebase.initializeApp({
+            apiKey:"AIzaSyAV27xBZxUpnEvO_jRUjXZOever_6Sb3lE",
+            databaseURL:"https://ascend-dashboard-a4154-default-rtdb.firebaseio.com",
+            projectId:"ascend-dashboard-a4154",
+            appId:"1:469057284061:web:09635c82fc0d78125eb834"
+          });
+          dbRef=firebase.database().ref('profiles');
+          dbRef.once('value',function(snap){
+            var d=snap.val();
+            if(d){
+              _fbConnected=true;
+              profiles=d;
+              try{localStorage.setItem('asc_profiles',JSON.stringify(profiles));}catch(e){}
+              if(activeId){
+                if(!profiles[activeId]){showProfiles();return;}
+                render();
+              } else { showProfiles(); }
+            }
+            // Real-time updates
+            dbRef.on('value',function(snap){
+              _fbConnected=true;
+              var d=snap.val();
+              if(d){
+                profiles=d;
+                try{localStorage.setItem('asc_profiles',JSON.stringify(profiles));}catch(e){}
+                if(activeId){
+                  if(!profiles[activeId]){showProfiles();return;}
+                  render();
+                } else { showProfiles(); }
+              }
+            });
+          },function(){/* ignore firebase errors */});
+        }catch(e){}
+      });
     });
   }
 
@@ -1092,24 +1100,6 @@ var APP = (function(){
   load(function(){
     if(!Object.keys(profiles).length)seed();
     showProfiles();
-
-    // Real-time listener — only attach if Firebase connected
-    if(_fbConnected){
-      dbRef.on('value',function(snap){
-        _fbConnected=true;
-        var d=snap.val();
-        if(d){
-          profiles=d;
-          try{localStorage.setItem('asc_profiles',JSON.stringify(profiles));}catch(e){}
-        }
-        if(activeId){
-          if(!profiles[activeId]){showProfiles();return}
-          render();
-        }else{
-          showProfiles();
-        }
-      });
-    }
   });
 
   return {openDash:openDash,showProfiles:showProfiles,openAdd:openAdd,openEdit:openEdit};
