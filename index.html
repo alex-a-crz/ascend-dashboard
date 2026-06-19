@@ -7,7 +7,7 @@
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Syne:wght@600;700;800&display=swap" rel="stylesheet">
-<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js" onerror="document.body.innerHTML='<div style=\'font-family:sans-serif;color:#f0f0f0;background:#0a0a0a;min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px\'><p style=\'font-size:1.2rem;font-weight:600\'>Failed to load</p><p style=\'color:#888;font-size:.9rem\'>Firebase blocked by network or browser extension.</p><p style=\'color:#888;font-size:.9rem\'>Try disabling ad blockers or opening in incognito.</p></div>'"></script>
 <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 <style>
 *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
@@ -521,6 +521,10 @@ var APP = (function(){
     messagingSenderId: "469057284061",
     appId: "1:469057284061:web:09635c82fc0d78125eb834"
   };
+  if(typeof firebase==='undefined'){
+    document.body.innerHTML='<div style="font-family:sans-serif;color:#f0f0f0;background:#0a0a0a;min-height:100vh;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px"><p style="font-size:1.2rem;font-weight:600">Failed to connect</p><p style="color:#888;font-size:.9rem">Firebase blocked by network or browser extension.</p><p style="color:#888;font-size:.9rem">Try disabling ad blockers or opening in incognito.</p></div>';
+    return {};
+  }
   firebase.initializeApp(firebaseConfig);
   var db = firebase.database();
   var dbRef = db.ref('profiles');
