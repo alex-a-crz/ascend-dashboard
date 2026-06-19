@@ -629,8 +629,10 @@ var APP = (function(){
     var keys=Object.keys(profiles);
     for(var i=0;i<keys.length;i++){
       var id=keys[i],p=profiles[id];
-      var earned=p.rows.reduce(function(s,r){return s+cut(r)},0);
-      var n=p.rows.length;
+      if(!p||!p.name)continue;
+      var rows=p.rows||[];
+      var earned=rows.reduce(function(s,r){return s+cut(r)},0);
+      var n=rows.length;
       h+='<div class="pcard" data-pid="'+id+'">';
       h+='<button class="x" data-xid="'+id+'">&times;</button>';
       h+='<div class="avatar">'+esc(p.name.charAt(0).toUpperCase())+'</div>';
