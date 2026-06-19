@@ -759,7 +759,7 @@ var APP = (function(){
       if(pr&&pr.tier==='hi')hi++;
       var rd=new Date(r.date+'T12:00:00');
       if(rd.getMonth()===cm&&rd.getFullYear()===cy)month+=c;
-      if(r.rec&&r.monthly>0&&(r.paid||1)<(r.totpay||1))pending+=(totalCut(r)-c);
+      if(r.rec&&r.monthly>0&&(r.paid!=null?r.paid:0)<(r.totpay||1))pending+=(totalCut(r)-c);
     }
 
     var sub='<b>'+rows.length+' close'+(rows.length!==1?'s':'')+'</b>';
@@ -789,7 +789,7 @@ var APP = (function(){
 
         var dateH;
         if(isRec){
-          var pd=r.paid||1,tp=r.totpay||1;
+          var pd=r.paid!=null?r.paid:0,tp=r.totpay||1;
           if(pd>=tp){dateH='<span class="badge b-done">Paid off</span>'}
           else{
             var pct=Math.min(100,(pd/tp)*100);
@@ -839,7 +839,7 @@ var APP = (function(){
           var closeCount=0;
           for(var ri=0;ri<rows.length;ri++){var rd=new Date(rows[ri].date+'T12:00:00');if(rd>=per.start&&rd<=per.end)closeCount++;}
           cards+=
-            '<div class="percard'+(isCur?' cur':'')+'" data-pi="'+pi+'">'+
+            '<div class="percard'+(isCur?' cur':'')+'" data-period-idx="'+pi+'">'+
               '<div class="per-left">'+
                 '<div class="per-lbl">'+(isCur?'Current Period':'')+'</div>'+
                 '<div class="per-range">'+per.label+'</div>'+
@@ -858,9 +858,9 @@ var APP = (function(){
       '<div class="footer"><span>'+esc(p.name)+' &middot; Ascend Collective affiliate</span><span>Updated '+fmtD(new Date())+'</span></div>';
 
     // bind
-    var periodCards=document.querySelectorAll('[data-pi]');
+    var periodCards=document.querySelectorAll('[data-period-idx]');
     for(var pc=0;pc<periodCards.length;pc++){
-      periodCards[pc].addEventListener('click',(function(idx){return function(){openPeriod(idx)}})(parseInt(periodCards[pc].getAttribute('data-pi'))));
+      periodCards[pc].addEventListener('click',(function(idx){return function(){openPeriod(idx)}})(parseInt(periodCards[pc].getAttribute('data-period-idx'))));
     }
     var addBtn=$('btn-add');
     if(addBtn)addBtn.addEventListener('click',openAdd);
