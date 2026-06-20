@@ -707,7 +707,7 @@ var APP = (function(){
 
   function openPeriod(idx){
     var p=profiles[activeId];if(!p)return;
-    var rows=p.rows;
+    var rows=p.rows||[];
     var period=_allPeriods[idx];if(!period)return;
     // Build line items: upfront on close date, each payment on its logged date
     var lineItems=[];
@@ -775,7 +775,7 @@ var APP = (function(){
 
   function render(){
     var p=profiles[activeId];if(!p)return;
-    var rows=p.rows;
+    var rows=p.rows||[];
     var po=nextPayouts();
     var dn=daysTo(po.next),da=daysTo(po.after);
 
