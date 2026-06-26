@@ -952,7 +952,7 @@ var APP = (function(){
     $('f-monthly').value='';
     $('f-totpay').value='';
     $('f-paid').value='0';
-    syncForm();
+    syncForm(true);
     $('ov-add').classList.add('open');
     setTimeout(function(){$('f-client').focus()},100);
   }
@@ -989,12 +989,12 @@ var APP = (function(){
 
   function closeAdd(){$('ov-add').classList.remove('open')}
 
-  function syncForm(){
+  function syncForm(resetRate){
     var pk=$('f-product').value;
     var rk=$('f-role').value;
     var pr=PRODUCTS[pk];if(!pr)return;
     if(pk!=='custom')$('f-amount').value=pr.price;
-    $('f-rate').value=eRate(pk,rk);
+    if(resetRate)$('f-rate').value=eRate(pk,rk);
     if(pr.rec)$('f-rec').classList.add('show');
     else $('f-rec').classList.remove('show');
     calcPreview();
