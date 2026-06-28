@@ -781,12 +781,17 @@ var APP = (function(){
 
     $('tb-pill').innerHTML='Payout in <strong>'+dn+'d</strong>';
 
-    var rev=0,comm=0,pending=0,best=0,hi=0,month=0;
+    var rev=0,collected=0,comm=0,pending=0,best=0,hi=0,month=0;
     var now=new Date(),cm=now.getMonth(),cy=now.getFullYear();
 
     for(var i=0;i<rows.length;i++){
       var r=rows[i];
       rev+=Number(r.amount);
+      if(r.rec&&r.monthly>0){
+        collected+=(r.upfront||0)+r.monthly*(r.paid!=null?r.paid:0);
+      }else{
+        collected+=Number(r.amount);
+      }
       var c=cut(r);
       comm+=c;
       if(c>best)best=c;
@@ -851,7 +856,7 @@ var APP = (function(){
     }
 
     $('view-dash').innerHTML=
-      '<div class="cash-banner"><div class="amt">'+fmt(rev)+'</div><div class="lbl">Total revenue closed across all clients</div></div>'+
+      '<div class="cash-banner"><div class="amt">'+fmt(collected)+'</div><div class="lbl">Total cash collected</div><div style="font-size:.85rem;opacity:.6;margin-top:6px">'+fmt(rev)+' total deal value</div></div>'+
       '<div class="hero"><div class="lbl">Total commissions earned</div><div class="big">'+fmt(comm)+'</div><div class="sub">'+sub+'</div></div>'+
       '<div class="stats">'+
         '<div class="scard"><div class="sl">This Month</div><div class="sv green">'+fmt(month)+'</div></div>'+
