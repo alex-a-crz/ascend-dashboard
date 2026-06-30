@@ -352,7 +352,7 @@ select option{background:var(--surface);color:var(--text)}
     </div>
     <div class="fg-row">
       <div class="fg"><label>Amount paid ($)</label><input type="number" id="f-amount" step="0.01" min="0"></div>
-      <div class="fg"><label>Commission rate</label><input type="text" id="f-rate" readonly style="background:var(--surface);color:var(--muted);cursor:default"></div>
+      <div class="fg"><label>Commission rate (%)</label><input type="number" id="f-rate" step="0.5" min="0" max="100"></div>
     </div>
     <div class="rec" id="f-rec">
       <div class="fg"><label>Upfront deposit ($) <span style="color:var(--muted);font-weight:400">(optional)</span></label><input type="number" id="f-upfront" step="0.01" min="0" placeholder="0"></div>
@@ -1050,7 +1050,7 @@ var APP = (function(){
     $('f-role').value=r.role||'closer';
     $('f-product').value=r.product||'ecom-ignition';
     $('f-amount').value=r.amount||0;
-    $('f-rate').value=eRate()+'%';
+    $('f-rate').value=r.rate||eRate();
     $('f-date').value=r.date||isoToday();
     var pr=PRODUCTS[r.product];
     if(pr&&pr.rec){
@@ -1077,8 +1077,7 @@ var APP = (function(){
     var pk=$('f-product').value;
     var pr=PRODUCTS[pk];if(!pr)return;
     if(pk!=='custom')$('f-amount').value=pr.price;
-    var rate=eRate();
-    $('f-rate').value=rate+'%';
+    if(!parseFloat($('f-rate').value))$('f-rate').value=eRate();
     if(pr.rec)$('f-rec').classList.add('show');
     else $('f-rec').classList.remove('show');
     calcPreview();
@@ -1086,7 +1085,7 @@ var APP = (function(){
 
   function calcPreview(){
     var amount=parseFloat($('f-amount').value)||0;
-    var rate=eRate();
+    var rate=parseFloat($('f-rate').value)||eRate();
     var pk=$('f-product').value;
     var pr=PRODUCTS[pk];
 
@@ -1123,7 +1122,7 @@ var APP = (function(){
       product:pk,
       role:$('f-role').value,
       amount:parseFloat($('f-amount').value)||0,
-      rate:eRate(),
+      rate:parseFloat($('f-rate').value)||eRate(),
       date:$('f-date').value||isoToday(),
       rec:pr.rec
     };
@@ -1169,6 +1168,7 @@ var APP = (function(){
   $('f-product').addEventListener('change',syncForm);
   $('f-role').addEventListener('change',syncForm);
   $('f-amount').addEventListener('input',calcPreview);
+  $('f-rate').addEventListener('input',calcPreview);
   $('f-upfront').addEventListener('input',calcPreview);
   $('f-monthly').addEventListener('input',calcPreview);
   $('f-totpay').addEventListener('input',calcPreview);
