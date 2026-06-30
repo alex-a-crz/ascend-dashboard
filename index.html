@@ -1050,7 +1050,7 @@ var APP = (function(){
     $('f-role').value=r.role||'closer';
     $('f-product').value=r.product||'ecom-ignition';
     $('f-amount').value=r.amount||0;
-    $('f-rate').value=r.rate||eRate();
+    $('f-rate').value=r.rate||'';
     $('f-date').value=r.date||isoToday();
     var pr=PRODUCTS[r.product];
     if(pr&&pr.rec){
@@ -1077,7 +1077,6 @@ var APP = (function(){
     var pk=$('f-product').value;
     var pr=PRODUCTS[pk];if(!pr)return;
     if(pk!=='custom')$('f-amount').value=pr.price;
-    if(!parseFloat($('f-rate').value))$('f-rate').value=eRate();
     if(pr.rec)$('f-rec').classList.add('show');
     else $('f-rec').classList.remove('show');
     calcPreview();
@@ -1085,7 +1084,7 @@ var APP = (function(){
 
   function calcPreview(){
     var amount=parseFloat($('f-amount').value)||0;
-    var rate=parseFloat($('f-rate').value)||eRate();
+    var rate=parseFloat($('f-rate').value)||0;
     var pk=$('f-product').value;
     var pr=PRODUCTS[pk];
 
@@ -1122,7 +1121,7 @@ var APP = (function(){
       product:pk,
       role:$('f-role').value,
       amount:parseFloat($('f-amount').value)||0,
-      rate:parseFloat($('f-rate').value)||eRate(),
+      rate:parseFloat($('f-rate').value)||0,
       date:$('f-date').value||isoToday(),
       rec:pr.rec
     };
