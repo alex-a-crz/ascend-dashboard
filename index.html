@@ -158,16 +158,6 @@ select option{background:var(--surface);color:var(--text)}
 .scard .sv{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Helvetica,Arial,sans-serif;font-size:1.6rem;font-weight:700}
 .scard .sv.green{color:var(--green)}
 
-.tier-card{background:var(--surface);border:1px solid var(--border2);border-radius:14px;padding:20px 22px;margin-bottom:24px}
-.tier-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px;font-size:.85rem;color:var(--muted)}
-.tier-badge{font-size:.78rem;font-weight:700;padding:3px 10px;border-radius:20px;letter-spacing:.5px}
-.tier-lo{background:rgba(200,241,53,.12);color:var(--accent)}
-.tier-hi{background:rgba(74,222,128,.15);color:var(--green)}
-.tier-bar-wrap{margin-bottom:10px}
-.tier-bar{height:8px;background:var(--surface2);border-radius:4px;overflow:hidden;margin-bottom:4px}
-.tier-fill{height:100%;background:var(--accent);border-radius:4px;transition:width .4s ease}
-.tier-labels{display:flex;justify-content:space-between;font-size:.7rem;color:var(--muted)}
-.tier-sub{font-size:.8rem;color:var(--muted)}
 .payouts{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:32px}
 .pocard{background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px}
 .pocard.hi{border-color:var(--accent);background:rgba(200,241,53,.04)}
@@ -352,7 +342,7 @@ select option{background:var(--surface);color:var(--text)}
     </div>
     <div class="fg-row">
       <div class="fg"><label>Amount paid ($)</label><input type="number" id="f-amount" step="0.01" min="0"></div>
-      <div class="fg"><label>Commission rate (%)</label><input type="number" id="f-rate" step="0.5" min="0" max="100"></div>
+      <div class="fg"><label>Commission rate (%)</label><input type="number" id="f-rate" step="1" min="0" max="100"></div>
     </div>
     <div class="rec" id="f-rec">
       <div class="fg"><label>Upfront deposit ($) <span style="color:var(--muted);font-weight:400">(optional)</span></label><input type="number" id="f-upfront" step="0.01" min="0" placeholder="0"></div>
@@ -438,51 +428,6 @@ var APP = (function(){
   var MONTHS=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
   var FULLMONTHS=['January','February','March','April','May','June','July','August','September','October','November','December'];
 
-  // ── Tiered commission: 5% up to $49,999/mo, 7% above $50k — resets monthly ──
-  function cashInMonth(rows,mk){
-    var t=0;
-    for(var i=0;i<rows.length;i++){
-      var r=rows[i];
-      if(!r.rec){if(r.date.substring(0,7)===mk)t+=r.amount;}
-      else{
-        if(r.date.substring(0,7)===mk)t+=(r.upfront||0);
-        var pd=r.paymentDates||[];
-        for(var j=0;j<pd.length;j++){if(pd[j].substring(0,7)===mk)t+=r.monthly;}
-        if(!pd.length&&(r.paid||0)>0&&r.date.substring(0,7)===mk)t+=r.monthly*(r.paid||0);
-      }
-    }
-    return t;
-  }
-
-  function tierCommForCash(cash){
-    var THRESH=50000;
-    if(cash<=THRESH)return cash*0.05;
-    return THRESH*0.05+(cash-THRESH)*0.07;
-  }
-
-  function profileComm(rows){
-    var months={};
-    for(var i=0;i<rows.length;i++){
-      var r=rows[i];
-      if(!r.rec){
-        var mk=r.date.substring(0,7);months[mk]=(months[mk]||0)+r.amount;
-      }else{
-        var mk=r.date.substring(0,7);months[mk]=(months[mk]||0)+(r.upfront||0);
-        var pd=r.paymentDates||[];
-        for(var j=0;j<pd.length;j++){var pmk=pd[j].substring(0,7);months[pmk]=(months[pmk]||0)+r.monthly;}
-        if(!pd.length&&(r.paid||0)>0)months[mk]=(months[mk]||0)+r.monthly*(r.paid||0);
-      }
-    }
-    var total=0;
-    for(var k in months)total+=tierCommForCash(months[k]);
-    return total;
-  }
-
-  function currentRate(rows){
-    var mk=isoToday().substring(0,7);
-    return cashInMonth(rows||[],mk)>=50000?7:5;
-  }
-
   function getMonthPeriods(m,y){
     var lastDay=new Date(y,m+1,0).getDate();
     return {
@@ -492,28 +437,25 @@ var APP = (function(){
   }
 
   function periodComm(rows,start,end){
-    // Use blended monthly tier rate for each payment
-    function effRate(mk){
-      var mCash=cashInMonth(rows,mk);
-      var mComm=tierCommForCash(mCash);
-      return mCash>0?mComm/mCash:0.05;
-    }
     var t=0;
     for(var i=0;i<rows.length;i++){
       var r=rows[i];
       var rd=new Date(r.date+'T12:00:00');
       if(r.rec&&r.monthly>0){
-        if(rd>=start&&rd<=end)t+=(r.upfront||0)*effRate(r.date.substring(0,7));
+        // Upfront commission counts in the period the deal was closed
+        if(rd>=start&&rd<=end)t+=(r.upfront||0)*(r.rate/100);
+        // Each monthly payment counts in the period it was logged
         var pdates=r.paymentDates||[];
         for(var j=0;j<pdates.length;j++){
           var pd=new Date(pdates[j]+'T12:00:00');
-          if(pd>=start&&pd<=end)t+=r.monthly*effRate(pdates[j].substring(0,7));
+          if(pd>=start&&pd<=end)t+=r.monthly*(r.rate/100);
         }
+        // Fallback: old rows with paid>0 but no paymentDates — attribute to close date
         if(!pdates.length&&(r.paid||0)>0&&rd>=start&&rd<=end){
-          t+=r.monthly*(r.paid||0)*effRate(r.date.substring(0,7));
+          t+=r.monthly*(r.rate/100)*(r.paid||0);
         }
       }else{
-        if(rd>=start&&rd<=end)t+=r.amount*effRate(r.date.substring(0,7));
+        if(rd>=start&&rd<=end)t+=cut(r);
       }
     }
     return t;
@@ -544,9 +486,10 @@ var APP = (function(){
     return {next:f[0],after:f[1]};
   }
 
-  function eRate(){
-    var p=profiles[activeId];
-    return currentRate(p?p.rows:[]);
+  function eRate(pk,rk){
+    var p=PRODUCTS[pk];if(!p)return 0;
+    if(p.tier==='hi'&&ROLES[rk])return ROLES[rk].rate;
+    return p.base;
   }
 
   function cut(r){
@@ -838,9 +781,8 @@ var APP = (function(){
 
     $('tb-pill').innerHTML='Payout in <strong>'+dn+'d</strong>';
 
-    var rev=0,collected=0,pending=0,best=0,hi=0;
+    var rev=0,collected=0,comm=0,pending=0,best=0,hi=0,month=0;
     var now=new Date(),cm=now.getMonth(),cy=now.getFullYear();
-    var mk=cy+'-'+((cm<9?'0':'')+(cm+1));
 
     for(var i=0;i<rows.length;i++){
       var r=rows[i];
@@ -851,15 +793,14 @@ var APP = (function(){
         collected+=Number(r.amount);
       }
       var c=cut(r);
+      comm+=c;
       if(c>best)best=c;
       var pr=PRODUCTS[r.product];
       if(pr&&pr.tier==='hi')hi++;
+      var rd=new Date(r.date+'T12:00:00');
+      if(rd.getMonth()===cm&&rd.getFullYear()===cy)month+=c;
       if(r.rec&&r.monthly>0&&(r.paid!=null?r.paid:0)<(r.totpay||1))pending+=(totalCut(r)-c);
     }
-
-    var comm=profileComm(rows);
-    var monthCash=cashInMonth(rows,mk);
-    var month=tierCommForCash(monthCash);
 
     var sub='<b>'+rows.length+' close'+(rows.length!==1?'s':'')+'</b>';
     if(pending>0)sub+=' &middot; '+fmt(pending)+' pending';
@@ -914,29 +855,9 @@ var APP = (function(){
       }
     }
 
-    var THRESH=50000;
-    var tierPct=Math.min(100,(monthCash/THRESH)*100);
-    var curRate=monthCash>=THRESH?7:5;
-    var remaining=Math.max(0,THRESH-monthCash);
-    var tierCard=
-      '<div class="tier-card">'+
-        '<div class="tier-header">'+
-          '<span>Monthly Tier — '+MONTHS[cm]+' '+cy+'</span>'+
-          '<span class="tier-badge '+(curRate===7?'tier-hi':'tier-lo')+'">'+curRate+'% Rate</span>'+
-        '</div>'+
-        '<div class="tier-bar-wrap">'+
-          '<div class="tier-bar"><div class="tier-fill" style="width:'+tierPct.toFixed(1)+'%"></div></div>'+
-          '<div class="tier-labels"><span>$0</span><span>$50k</span></div>'+
-        '</div>'+
-        '<div class="tier-sub">'+fmt(monthCash)+' collected this month'+
-          (remaining>0?' · '+fmt(remaining)+' until 7% tier':' · You\'re in the 7% tier!')+
-        '</div>'+
-      '</div>';
-
     $('view-dash').innerHTML=
       '<div class="cash-banner"><div class="amt">'+fmt(collected)+'</div><div class="lbl">Total cash collected</div><div style="font-size:.85rem;opacity:.6;margin-top:6px">'+fmt(rev)+' total deal value</div></div>'+
       '<div class="hero"><div class="lbl">Total commissions earned</div><div class="big">'+fmt(comm)+'</div><div class="sub">'+sub+'</div></div>'+
-      tierCard+
       '<div class="stats">'+
         '<div class="scard"><div class="sl">This Month</div><div class="sv green">'+fmt(month)+'</div></div>'+
         '<div class="scard"><div class="sl">Best Close</div><div class="sv">'+fmt(best)+'</div></div>'+
@@ -1050,7 +971,7 @@ var APP = (function(){
     $('f-role').value=r.role||'closer';
     $('f-product').value=r.product||'ecom-ignition';
     $('f-amount').value=r.amount||0;
-    $('f-rate').value=r.rate||'';
+    $('f-rate').value=r.rate||0;
     $('f-date').value=r.date||isoToday();
     var pr=PRODUCTS[r.product];
     if(pr&&pr.rec){
@@ -1073,10 +994,12 @@ var APP = (function(){
 
   function closeAdd(){$('ov-add').classList.remove('open')}
 
-  function syncForm(){
+  function syncForm(resetRate){
     var pk=$('f-product').value;
+    var rk=$('f-role').value;
     var pr=PRODUCTS[pk];if(!pr)return;
     if(pk!=='custom')$('f-amount').value=pr.price;
+    if(resetRate)$('f-rate').value=eRate(pk,rk);
     if(pr.rec)$('f-rec').classList.add('show');
     else $('f-rec').classList.remove('show');
     calcPreview();
